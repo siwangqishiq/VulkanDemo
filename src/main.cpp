@@ -54,6 +54,8 @@ private:
     void createInstance(){
         std::cout << "create vulkan instance " << std::endl;
 
+        checkValidationLayerSupport();
+
         VkApplicationInfo appInfo = {};
         appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
         appInfo.pApplicationName = "HelloTriangle";
@@ -92,6 +94,23 @@ private:
         for(const auto &ex : extensions){
             std::cout << '\t' << ex.extensionName << '\t' << ex.specVersion << std::endl;
         }//end for each
+    }
+
+    bool checkValidationLayerSupport(){
+        uint32_t layerCount = 0;
+
+        vkEnumerateInstanceLayerProperties(&layerCount , nullptr);
+
+        std::vector<VkLayerProperties> availableLayers(layerCount);
+        VkResult result = vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
+        std::cout << "vkEnumerateInstanceLayerProperties result = " << result << std::endl;
+
+        std::cout << "instance layer properties:" << std::endl;
+        for(int i = 0 ; i < layerCount ;i++){
+            std::cout << '\t' << availableLayers[i].layerName << std::endl;
+        }//end for i
+
+        return true;
     }
 
     void mainloop(){
