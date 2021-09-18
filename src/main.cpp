@@ -13,6 +13,7 @@
 
 #include <string>
 #include <vector>
+#include <optional>
 
 #include "utils.hpp"
 
@@ -54,6 +55,8 @@ private:
 
     VkDebugUtilsMessengerEXT debugMessenger;
 
+    VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+
     void initWindow(){
         glfwInit();
 
@@ -66,6 +69,8 @@ private:
     void initVulkan(){
         createInstance();
         setupDebugMessenger();
+
+        pickPhysicDevice();
     }
 
     //create vulkan instance
@@ -241,6 +246,44 @@ private:
         ,void *pUserData){
         std::cerr << "validation layer : " << pCallbackData->pMessage << std::endl;
         return VK_FALSE;
+    }
+
+    //选择物理设备GPU
+    void pickPhysicDevice(){
+        uint32_t gpuCount = 0;
+        vkEnumeratePhysicalDevices(instance , &gpuCount , nullptr);
+        std::cout << "gpu count : " << gpuCount << std::endl;
+
+        std::vector<VkPhysicalDevice> gpus(gpuCount);
+        vkEnumeratePhysicalDevices(instance , &gpuCount , gpus.data());
+
+        for(VkPhysicalDevice &device : gpus){
+            if(isDeviceSuiable(device)){
+                physicalDevice = device;
+            }
+        }//end for each
+
+        if(physicalDevice == VK_NULL_HANDLE){
+            throw std::runtime_error("no found suitable physical device!");
+        }
+    }
+
+    //依据设备特性进行选择
+    bool isDeviceSuiable(VkPhysicalDevice device){
+        VkPhysicalDeviceProperties properties;
+        VkPhysicalDeviceFeatures features;
+
+        vkGetPhysicalDeviceProperties(device , &properties);
+        vkGetPhysicalDeviceFeatures(device , &features);
+
+        std::cout << "device name : " << properties.deviceName << 
+            " " << properties.deviceType << 
+            " deviceID : " << properties.deviceID <<
+            " driverVersion : " << properties.driverVersion << 
+            " geometryShader : " << features.geometryShader <<
+            " tessellationShader : " << features.tessellationShader << std::endl;
+        
+        return true;
     }
 };
 
