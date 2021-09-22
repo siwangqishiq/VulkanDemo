@@ -31,6 +31,15 @@ const bool enableValidateLayers = false;
 const uint32_t WIDTH = 1280;
 const uint32_t HEIGHT = 800;
 
+//队列簇
+struct QueueFamilyIndices{
+    int queueIndex = -1;//队列索引
+
+    bool isComplete(){
+        return queueIndex >= 0;
+    }
+};
+
 //验证层名称
 const std::vector<const char *> validateLayers = {
     "VK_LAYER_KHRONOS_validation"
@@ -57,6 +66,10 @@ private:
 
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
 
+    VkDevice device = VK_NULL_HANDLE;//逻辑设备
+
+    VkQueue graphicsQueue;
+
     void initWindow(){
         glfwInit();
 
@@ -71,6 +84,8 @@ private:
         setupDebugMessenger();
 
         pickPhysicDevice();
+
+        createLogicDevice();
     }
 
     //create vulkan instance
@@ -196,10 +211,10 @@ private:
     }
 
     void cleanup(){
+        vkDestroyDevice(device , nullptr);
         if(enableValidateLayers){
             destoryDebugUtilsMessengerEXT(instance ,debugMessenger , nullptr);
         }
-
         vkDestroyInstance(instance , nullptr);
 
         glfwDestroyWindow(window);
@@ -260,6 +275,7 @@ private:
         for(VkPhysicalDevice &device : gpus){
             if(isDeviceSuiable(device)){
                 physicalDevice = device;
+                break;
             }
         }//end for each
 
@@ -282,13 +298,76 @@ private:
             " driverVersion : " << properties.driverVersion << 
             " geometryShader : " << features.geometryShader <<
             " tessellationShader : " << features.tessellationShader << std::endl;
+
+        QueueFamilyIndices indices = findQueueFamilies(device);
+        return indices.isComplete();
+    }
+
+    //
+    QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device){
+        QueueFamilyIndices indices;
+
+        uint32_t queueFamilyCount = 0;
+        vkGetPhysicalDeviceQueueFamilyProperties(device , &queueFamilyCount , nullptr);
+        std::cout << "queueFamilyCount = " << queueFamilyCount << std::endl;
+
+        std::vector<VkQueueFamilyProperties> familyProperies(queueFamilyCount);
+        vkGetPhysicalDeviceQueueFamilyProperties(device , &queueFamilyCount , familyProperies.data());
+
+        int index = 0;
+        for(VkQueueFamilyProperties &prop : familyProperies){
+            std::cout << "VkQueueFamilyProperty : queueCount " 
+                    << prop.queueCount << " flag " << prop.queueFlags << std::endl;
+            if(prop.queueCount > 0 && prop.queueFlags & VK_QUEUE_GRAPHICS_BIT){
+                indices.queueIndex = index;
+            }
+
+            if(indices.isComplete()){
+                break;
+            }
+
+            index++;
+        }//end for each
+
+        return indices;
+    }
+
+    //创建逻辑设备
+    void createLogicDevice() {
+        QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+
+        VkDeviceQueueCreateInfo queueCreateInfo = {};
+        queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        queueCreateInfo.queueFamilyIndex = indices.queueIndex;
+        queueCreateInfo.queueCount = 1;
+        float queueProperties = 1.0f;
+        queueCreateInfo.pQueuePriorities = &queueProperties;
+
+        VkPhysicalDeviceFeatures deviceFeatures = {};
         
-        return true;
+        VkDeviceCreateInfo deviceCreateInfo = {};
+        deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+        deviceCreateInfo.queueCreateInfoCount = 1;
+        deviceCreateInfo.pQueueCreateInfos = &queueCreateInfo;
+        deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
+
+        deviceCreateInfo.enabledExtensionCount = 0;
+        if(enableValidateLayers){
+            deviceCreateInfo.enabledLayerCount = static_cast<uint32_t>(validateLayers.size());
+            deviceCreateInfo.ppEnabledLayerNames = validateLayers.data();
+        }else{
+            deviceCreateInfo.enabledLayerCount = 0;
+        }
+
+        if(vkCreateDevice(physicalDevice , &deviceCreateInfo , nullptr , &device) != VK_SUCCESS){
+            throw std::runtime_error("failed to create logical device !");
+        }
+
+        vkGetDeviceQueue(device , indices.queueIndex , 0 , &graphicsQueue);
     }
 };
 
 int main(int argc , char *argv[]){
-    //std::cout << "Hello 你好 Vulkan" << std::endl;
     HelloTriangleApplication app;
 
     try{
