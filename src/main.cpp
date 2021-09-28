@@ -90,6 +90,8 @@ private:
     VkFormat swapChainImageFormat;
     VkExtent2D swapChainExtent;//交换链图像分辨率
 
+    std::vector<VkImageView> swapChainImageViews;//交换链imageView
+
     void initWindow(){
         glfwInit();
 
@@ -108,6 +110,38 @@ private:
         pickPhysicalDevice();
         createLogicalDevice();
         createSwapChain();
+        createImageViews();
+    }
+
+    //创建与image关联的imageview
+    void createImageViews(){
+        swapChainImageViews.resize(swapChainImages.size());
+
+        for(int i = 0 ; i < swapChainImages.size(); i++){
+            VkImageViewCreateInfo imageViewCreateInfo = {};
+            imageViewCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+            imageViewCreateInfo.pNext = nullptr;
+            imageViewCreateInfo.image = swapChainImages[i];
+            imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+            imageViewCreateInfo.format = swapChainImageFormat;
+
+            imageViewCreateInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+            imageViewCreateInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+            imageViewCreateInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+            imageViewCreateInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+
+            imageViewCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+            imageViewCreateInfo.subresourceRange.levelCount = 1;
+            imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+            imageViewCreateInfo.subresourceRange.layerCount = 1;    
+
+            if(vkCreateImageView(device , &imageViewCreateInfo , nullptr , &swapChainImageViews[i]) != VK_SUCCESS){
+               throw std::runtime_error("failed to create imageview.");
+            }
+        }//end for i
+
+        std::cout << "create image view " << swapChainImageViews.size() << " success" <<std::endl; 
     }
 
     //创建交换链 用于展示图像
@@ -385,10 +419,9 @@ private:
 
     //清理资源
     void cleanup(){
-        // for(VkImage &image : swapChainImages){
-        //     vkDestroyImage(device , image , nullptr);
-        // }//end for each
-
+        for(VkImageView &imageView : swapChainImageViews){
+            vkDestroyImageView(device , imageView , nullptr);
+        }//end for each
         vkDestroySwapchainKHR(device , swapChain , nullptr);
 
         vkDestroyDevice(device , nullptr);
@@ -569,7 +602,7 @@ private:
             queueCreateInfo.queueCount = 1;
             float queueProperties = 1.0f;
             queueCreateInfo.pQueuePriorities = &queueProperties;
-
+            
             queueCreateInfoList.push_back(queueCreateInfo);
         }//end for each
 

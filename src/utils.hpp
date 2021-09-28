@@ -4,7 +4,6 @@
 #include <string>
 #include <vector>
 
-
 static const std::vector<const char *> convertVectorStringToC(const std::vector<std::string> &list){
     std::vector<const char *> result;
     for(auto &str : list){
@@ -12,6 +11,8 @@ static const std::vector<const char *> convertVectorStringToC(const std::vector<
     }
     return result;
 }
+
+
 
 #endif
 
