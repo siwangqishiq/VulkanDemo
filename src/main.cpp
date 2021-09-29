@@ -111,6 +111,53 @@ private:
         createLogicalDevice();
         createSwapChain();
         createImageViews();
+
+        createGraphicsPipeline();
+    }
+
+    //创建图形管线
+    void createGraphicsPipeline(){
+        auto vertShaderCode = readFile("shaders/vert.spv");
+        VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
+
+        auto fragShaderCode = readFile("shaders/frag.spv");
+        VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
+
+        VkPipelineShaderStageCreateInfo vertCreateInfo = {};
+        vertCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        vertCreateInfo.pNext = nullptr;
+        vertCreateInfo.module = vertShaderModule;
+        vertCreateInfo.pName = "main";
+        vertCreateInfo.pSpecializationInfo = nullptr;//importent 重要优化点
+
+        VkPipelineShaderStageCreateInfo fragCreateInfo = {};
+        fragCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        fragCreateInfo.pNext = nullptr;
+        fragCreateInfo.module = fragShaderModule;
+        fragCreateInfo.pName = "main";
+        fragCreateInfo.pSpecializationInfo = nullptr;//importent 重要优化点
+
+        //着色器阶段
+        VkPipelineShaderStageCreateInfo shaderStages[] = {vertCreateInfo , fragCreateInfo};
+
+        vkDestroyShaderModule(device , vertShaderModule ,nullptr);
+        vkDestroyShaderModule(device , fragShaderModule ,nullptr);
+    }
+
+    //从spir-v文件 构造出shaderModule
+    VkShaderModule createShaderModule(std::vector<char> &code){
+        VkShaderModuleCreateInfo createInfo = {};
+        createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+        createInfo.codeSize = code.size();
+        createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
+        createInfo.pNext = nullptr;
+
+        VkShaderModule shaderModule;
+
+        if(vkCreateShaderModule(device , &createInfo , nullptr , &shaderModule) != VK_SUCCESS){
+            throw std::runtime_error("create shader module error.");
+        }
+        return shaderModule;
     }
 
     //创建与image关联的imageview
