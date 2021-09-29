@@ -92,6 +92,8 @@ private:
 
     std::vector<VkImageView> swapChainImageViews;//交换链imageView
 
+    VkPipelineLayout pipelineLayout;
+
     void initWindow(){
         glfwInit();
 
@@ -140,6 +142,114 @@ private:
         //着色器阶段
         VkPipelineShaderStageCreateInfo shaderStages[] = {vertCreateInfo , fragCreateInfo};
 
+        //pipline fixed function
+        //vertex input
+        VkPipelineVertexInputStateCreateInfo vertexStateCreateInfo = {};
+        vertexStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+        vertexStateCreateInfo.vertexAttributeDescriptionCount = 0;
+        vertexStateCreateInfo.pVertexAttributeDescriptions = nullptr;
+        vertexStateCreateInfo.vertexBindingDescriptionCount = 0;
+        vertexStateCreateInfo.pVertexBindingDescriptions = nullptr;
+
+        //Input assembly
+        VkPipelineInputAssemblyStateCreateInfo inputAssemblyCreateInfo = {};
+        inputAssemblyCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+        inputAssemblyCreateInfo.primitiveRestartEnable = VK_FALSE;
+        inputAssemblyCreateInfo.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+        //Viewports and scissors
+        VkViewport viewport = {};
+        viewport.x = 0.0f;
+        viewport.y = 0.0f;
+        viewport.width = static_cast<float>(swapChainExtent.width);
+        viewport.height = static_cast<float>(swapChainExtent.height);
+        viewport.height = 0.0f;
+        viewport.height = 1.0f;
+
+        VkRect2D scissor = {};
+        scissor.offset = {0 , 0};
+        scissor.extent = swapChainExtent;
+
+        VkPipelineViewportStateCreateInfo viewportCreateInfo = {};
+        viewportCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+        viewportCreateInfo.scissorCount = 1;
+        viewportCreateInfo.pScissors = &scissor;
+        viewportCreateInfo.viewportCount = 1;
+        viewportCreateInfo.pViewports = &viewport;
+
+        //Rasterizer
+        VkPipelineRasterizationStateCreateInfo rasterizationCreateInfo = {};
+        rasterizationCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+        rasterizationCreateInfo.depthClampEnable = VK_FALSE;
+        rasterizationCreateInfo.rasterizerDiscardEnable = VK_FALSE;
+        rasterizationCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
+        rasterizationCreateInfo.lineWidth = 1.0f;
+        rasterizationCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+        rasterizationCreateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
+        rasterizationCreateInfo.depthBiasEnable = VK_FALSE;
+        rasterizationCreateInfo.depthBiasConstantFactor = 0.0f;
+        rasterizationCreateInfo.depthBiasClamp = 0.0f;
+        rasterizationCreateInfo.depthBiasSlopeFactor = 0.0f;
+
+        //Multisampling
+        VkPipelineMultisampleStateCreateInfo multisamplingCreateInfo = {};
+        multisamplingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+        multisamplingCreateInfo.sampleShadingEnable = VK_FALSE;
+        multisamplingCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+        multisamplingCreateInfo.minSampleShading = 1.0f;
+        multisamplingCreateInfo.pSampleMask = nullptr;
+        multisamplingCreateInfo.alphaToCoverageEnable = VK_FALSE;
+        multisamplingCreateInfo.alphaToOneEnable = VK_FALSE;
+
+        //Depth and stencil testing
+        //todo
+
+        //Color blending
+        VkPipelineColorBlendAttachmentState colorBlendAttach = {};
+        colorBlendAttach.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT 
+                                        | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+        colorBlendAttach.blendEnable = VK_FALSE;
+        colorBlendAttach.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+        colorBlendAttach.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+        colorBlendAttach.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        colorBlendAttach.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+        colorBlendAttach.colorBlendOp = VK_BLEND_OP_ADD;
+        colorBlendAttach.alphaBlendOp = VK_BLEND_OP_ADD;
+
+        VkPipelineColorBlendStateCreateInfo blendCreateInfo = {};
+        blendCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+        blendCreateInfo.logicOpEnable = VK_FALSE;
+        blendCreateInfo.logicOp = VK_LOGIC_OP_COPY;
+        blendCreateInfo.attachmentCount = 1;
+        blendCreateInfo.pAttachments = &colorBlendAttach;
+        blendCreateInfo.blendConstants[0] = 0.0f;
+        blendCreateInfo.blendConstants[1] = 0.0f;
+        blendCreateInfo.blendConstants[2] = 0.0f;
+        blendCreateInfo.blendConstants[3] = 0.0f;
+
+        //Dynamic state
+        VkDynamicState dynamicState[] = {
+            VK_DYNAMIC_STATE_VIEWPORT,
+            VK_DYNAMIC_STATE_LINE_WIDTH
+        };
+        VkPipelineDynamicStateCreateInfo dynamicStateCreateInfo = {};
+        dynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+        dynamicStateCreateInfo.dynamicStateCount = 2;
+        dynamicStateCreateInfo.pDynamicStates = dynamicState;
+
+        //Pipeline layout
+        VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
+        pipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        pipelineLayoutCreateInfo.setLayoutCount = 0;
+        pipelineLayoutCreateInfo.pSetLayouts = nullptr;
+        pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
+        pipelineLayoutCreateInfo.pPushConstantRanges = nullptr;
+
+        if(vkCreatePipelineLayout(device , &pipelineLayoutCreateInfo , nullptr , &pipelineLayout) != VK_SUCCESS){
+            throw std::runtime_error("create pipeline layout failed.");
+        }
+
+        //destory shader modules
         vkDestroyShaderModule(device , vertShaderModule ,nullptr);
         vkDestroyShaderModule(device , fragShaderModule ,nullptr);
     }
@@ -466,6 +576,8 @@ private:
 
     //清理资源
     void cleanup(){
+        vkDestroyPipelineLayout(device , pipelineLayout , nullptr);
+
         for(VkImageView &imageView : swapChainImageViews){
             vkDestroyImageView(device , imageView , nullptr);
         }//end for each
