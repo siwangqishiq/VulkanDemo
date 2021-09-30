@@ -96,6 +96,11 @@ private:
 
     VkPipeline graphicsPipeline;//图形管线
 
+    std::vector<VkFramebuffer> swapChainFramebuffers;
+
+    VkCommandPool cmdPool;//指令池
+    std::vector<VkCommandBuffer> cmdBuffers;//指令缓存
+
     void initWindow(){
         glfwInit();
 
@@ -110,14 +115,77 @@ private:
         setupDebugMessenger();
 
         createSurface();
-
         pickPhysicalDevice();
         createLogicalDevice();
         createSwapChain();
         createImageViews();
-
         createRenderPass();
         createGraphicsPipeline();
+        createFramebuffers();
+        createCommandPool();
+        createCommandBuffers();
+    }
+
+    //创建指令缓存
+    void createCommandBuffers(){
+        cmdBuffers.resize(swapChainFramebuffers.size());
+
+        //创建与帧缓存个数相等的 指令缓冲区
+        VkCommandBufferAllocateInfo cmdBufAllocateInfo = {};
+        cmdBufAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        cmdBufAllocateInfo.commandPool = cmdPool;
+        cmdBufAllocateInfo.commandBufferCount = static_cast<uint32_t>(cmdBuffers.size());
+        cmdBufAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+
+        if(vkAllocateCommandBuffers(device , &cmdBufAllocateInfo , cmdBuffers.data()) != VK_SUCCESS){
+            throw std::runtime_error("failed create command buffers");
+        }
+
+        std::cout << "create command buffers success." << std::endl;
+
+        //start record command buffer
+        
+    }
+
+    //创建指令池  池的目的是为了以后分配指令
+    void createCommandPool(){
+        QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice);
+
+        VkCommandPoolCreateInfo cmdPoolCreateInfo = {};
+        cmdPoolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+        cmdPoolCreateInfo.queueFamilyIndex = queueFamilyIndices.graphicsIndex;
+        cmdPoolCreateInfo.flags = 0;
+
+        if(vkCreateCommandPool(device , &cmdPoolCreateInfo , nullptr , &cmdPool) != VK_SUCCESS){
+            throw std::runtime_error("failed create command pool !");
+        }
+
+        std::cout << "create command pool success" << std::endl;
+    }
+
+    //创建与swapchain 关联的framebuffer
+    void createFramebuffers(){
+        swapChainFramebuffers.resize(swapChainImageViews.size());
+
+        for(int i = 0; i < swapChainFramebuffers.size(); i++){
+            const VkImageView attachments[] = {swapChainImageViews[i]};
+
+            VkFramebufferCreateInfo framebufferCreateInfo = {};
+            framebufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+            framebufferCreateInfo.renderPass = renderPass;
+            framebufferCreateInfo.attachmentCount = 1;
+            framebufferCreateInfo.pAttachments = attachments;
+            framebufferCreateInfo.width = swapChainExtent.width;
+            framebufferCreateInfo.height = swapChainExtent.height;
+            framebufferCreateInfo.layers = 1;
+
+            if(vkCreateFramebuffer(device , &framebufferCreateInfo , nullptr , 
+                &swapChainFramebuffers[i]) != VK_SUCCESS){
+                throw std::runtime_error("failed create framebuffer!");
+            }
+        }//end for i
+
+        std::cout << "create frame buffer success count = " <<swapChainFramebuffers.size() << std::endl;
     }
     
     //创建渲染帧缓冲附着对象
@@ -645,6 +713,12 @@ private:
 
     //清理资源
     void cleanup(){
+        vkDestroyCommandPool(device , cmdPool , nullptr);
+
+        for(VkFramebuffer &framebuffer : swapChainFramebuffers){
+            vkDestroyFramebuffer(device ,framebuffer , nullptr);
+        }//end for each
+
         vkDestroyPipeline(device , graphicsPipeline , nullptr);
         vkDestroyPipelineLayout(device , pipelineLayout , nullptr);
         vkDestroyRenderPass(device , renderPass , nullptr);
@@ -815,7 +889,6 @@ private:
             index++;
         }//end for each
 
-
         return indices;
     }
 
@@ -857,7 +930,6 @@ private:
             deviceCreateInfo.enabledLayerCount = 0;
         }
         
-
         if(vkCreateDevice(physicalDevice , &deviceCreateInfo , nullptr , &device) != VK_SUCCESS){
             throw std::runtime_error("failed to create logical device !");
         }
