@@ -101,6 +101,10 @@ private:
     VkCommandPool cmdPool;//指令池
     std::vector<VkCommandBuffer> cmdBuffers;//指令缓存
 
+    //同步信号量
+    VkSemaphore imageAvailableSemaphore;
+    VkSemaphore renderFinishedSemaphore;
+
     void initWindow(){
         glfwInit();
 
@@ -124,6 +128,20 @@ private:
         createFramebuffers();
         createCommandPool();
         createCommandBuffers();
+        createSemaphores();
+    }
+
+    //创建信号量
+    void createSemaphores(){
+        VkSemaphoreCreateInfo createInfo = {};
+        createInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+        if(vkCreateSemaphore(device , &createInfo , nullptr , &imageAvailableSemaphore) != VK_SUCCESS
+            || vkCreateSemaphore(device , &createInfo , nullptr , &renderFinishedSemaphore) != VK_SUCCESS){
+            throw std::runtime_error("failed create semaphore");
+        }
+
+        std::cout << "create semaphores success " << std::endl;
     }
 
     //创建指令缓存
@@ -136,6 +154,7 @@ private:
         cmdBufAllocateInfo.commandPool = cmdPool;
         cmdBufAllocateInfo.commandBufferCount = static_cast<uint32_t>(cmdBuffers.size());
         cmdBufAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        // cmdBufAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_SECONDARY;
 
         if(vkAllocateCommandBuffers(device , &cmdBufAllocateInfo , cmdBuffers.data()) != VK_SUCCESS){
             throw std::runtime_error("failed create command buffers");
@@ -144,7 +163,39 @@ private:
         std::cout << "create command buffers success." << std::endl;
 
         //start record command buffer
-        
+        for(int i = 0 ; i < cmdBuffers.size() ;i++){
+            VkCommandBufferBeginInfo beginInfo = {};
+            beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+            beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+            beginInfo.pInheritanceInfo = nullptr;
+
+            if(vkBeginCommandBuffer(cmdBuffers[i] , &beginInfo) != VK_SUCCESS){
+                throw std::runtime_error("failed to begin command buffer");
+            }
+
+            VkRenderPassBeginInfo renderPassInfo = {};
+            renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+            renderPassInfo.renderPass = renderPass;
+            renderPassInfo.framebuffer = swapChainFramebuffers[i];
+
+            renderPassInfo.renderArea.offset = {0 , 0};
+            renderPassInfo.renderArea.extent = swapChainExtent;
+
+            VkClearValue clearColor = {0 , 0, 0 , 1.0f};
+            renderPassInfo.clearValueCount = 1;
+            renderPassInfo.pClearValues = &clearColor;
+
+            vkCmdBeginRenderPass(cmdBuffers[i] , &renderPassInfo , VK_SUBPASS_CONTENTS_INLINE);
+
+            //bind graphic pipeline
+            vkCmdBindPipeline(cmdBuffers[i] , VK_PIPELINE_BIND_POINT_GRAPHICS ,graphicsPipeline);
+            vkCmdDraw(cmdBuffers[i] , 3 , 1 , 0 , 0);
+
+            if(vkEndCommandBuffer(cmdBuffers[i]) != VK_SUCCESS){
+                throw std::runtime_error("failed to recoder render pass !");
+            }
+        }//end for i
+
     }
 
     //创建指令池  池的目的是为了以后分配指令
@@ -218,6 +269,17 @@ private:
         renderPassCreateInfo.subpassCount = 1;
         renderPassCreateInfo.pSubpasses = &subpass;
 
+        VkSubpassDependency dependency = {};
+        dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+        dependency.dstSubpass = 0;
+        dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        dependency.srcAccessMask = 0;
+        dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+        renderPassCreateInfo.dependencyCount = 1;
+        renderPassCreateInfo.pDependencies = &dependency;
+
         if(vkCreateRenderPass(device , &renderPassCreateInfo , nullptr , &renderPass) != VK_SUCCESS){
             throw std::runtime_error("failed to create render pass");
         }
@@ -271,8 +333,8 @@ private:
         viewport.y = 0.0f;
         viewport.width = static_cast<float>(swapChainExtent.width);
         viewport.height = static_cast<float>(swapChainExtent.height);
-        viewport.height = 0.0f;
-        viewport.height = 1.0f;
+        // viewport.height = 0.0f;
+        // viewport.height = 1.0f;
 
         VkRect2D scissor = {};
         scissor.offset = {0 , 0};
@@ -342,8 +404,10 @@ private:
         };
         VkPipelineDynamicStateCreateInfo dynamicStateCreateInfo = {};
         dynamicStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-        dynamicStateCreateInfo.dynamicStateCount = 2;
-        dynamicStateCreateInfo.pDynamicStates = dynamicState;
+        // dynamicStateCreateInfo.dynamicStateCount = 2;
+        // dynamicStateCreateInfo.pDynamicStates = dynamicState;
+        dynamicStateCreateInfo.dynamicStateCount = 0;
+        dynamicStateCreateInfo.pDynamicStates = nullptr;
 
         //Pipeline layout
         VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {};
@@ -708,11 +772,62 @@ private:
     void mainloop(){
         while(!glfwWindowShouldClose(window)){
             glfwPollEvents();
+            drawFrame();
         }//end while
+    }
+
+    //渲染一帧图像
+    void drawFrame(){
+        uint32_t imageIndex;
+
+        vkAcquireNextImageKHR(device , swapChain , 10*1000000 , 
+            imageAvailableSemaphore , VK_NULL_HANDLE , &imageIndex);
+
+        //std::cout << "imageIndex = " << imageIndex << std::endl;
+
+        VkSubmitInfo submitInfo = {};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+        VkSemaphore waitSemaphores[] = {imageAvailableSemaphore};
+        VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+
+
+        submitInfo.waitSemaphoreCount = 1;
+        submitInfo.pWaitSemaphores = waitSemaphores;
+        submitInfo.pWaitDstStageMask = waitStages;
+
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &cmdBuffers[imageIndex];
+
+        VkSemaphore signalSemaphores[] = {renderFinishedSemaphore};
+        submitInfo.signalSemaphoreCount = 1;
+        submitInfo.pSignalSemaphores = signalSemaphores;
+
+        if(vkQueueSubmit(graphicsQueue , 1 , &submitInfo , VK_NULL_HANDLE) != VK_SUCCESS){
+            throw std::runtime_error("fail to submit draw command buffer!");
+        }
+
+        VkPresentInfoKHR presentInfo = {};
+        presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+
+        presentInfo.waitSemaphoreCount = 1;
+        presentInfo.pWaitSemaphores = signalSemaphores;
+
+        VkSwapchainKHR swapChains[] = {swapChain};
+        presentInfo.swapchainCount = 1;
+        presentInfo.pSwapchains = swapChains;
+        presentInfo.pImageIndices = &imageIndex;
+
+        presentInfo.pResults = nullptr;
+
+        vkQueuePresentKHR(presentQueue , &presentInfo);
     }
 
     //清理资源
     void cleanup(){
+        vkDestroySemaphore(device , imageAvailableSemaphore , nullptr);
+        vkDestroySemaphore(device , renderFinishedSemaphore , nullptr);
+
         vkDestroyCommandPool(device , cmdPool , nullptr);
 
         for(VkFramebuffer &framebuffer : swapChainFramebuffers){
@@ -776,7 +891,7 @@ private:
         VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity ,VkDebugUtilsMessageTypeFlagsEXT messageType
         ,const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData 
         ,void *pUserData){
-        if(messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT){
+        if(messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT && enableValidateLayers){
                 std::cerr << "validation layer : " << pCallbackData->pMessage << std::endl;
         }
         return VK_FALSE;
