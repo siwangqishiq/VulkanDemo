@@ -9,10 +9,10 @@ GLSL_C = glslangValidator
 build_dir:
 	mkdir -p ${BUILD_DIR}
 
-${SHADER_DIR}/vert.spv:
+${SHADER_DIR}/vert.spv:${SHADER_DIR}/triangle.vert
 	${GLSL_C} -V ${SHADER_DIR}/triangle.vert -o ${SHADER_DIR}/vert.spv
 
-${SHADER_DIR}/frag.spv:
+${SHADER_DIR}/frag.spv:${SHADER_DIR}/triangle.frag
 	${GLSL_C} -V ${SHADER_DIR}/triangle.frag -o ${SHADER_DIR}/frag.spv
 
 compile:build_dir ${SHADER_DIR}/vert.spv ${SHADER_DIR}/frag.spv

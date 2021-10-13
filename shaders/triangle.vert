@@ -3,10 +3,6 @@
 
 layout(location = 0) out vec3 vertexColor;
 
-// out gl_PerVertex{
-//     vec4 gl_Position;
-// };
-
 vec2 positions[3] = vec2[](
     vec2(0.0 , -0.5),vec2(0.5 , 0.5),vec2(-0.5 , 0.5)
 );

@@ -181,7 +181,7 @@ private:
             renderPassInfo.renderArea.offset = {0 , 0};
             renderPassInfo.renderArea.extent = swapChainExtent;
 
-            VkClearValue clearColor = {0 , 0, 0 , 1.0f};
+            VkClearValue clearColor = {1.0f , 1.0f, 1.0 , 1.0f};
             renderPassInfo.clearValueCount = 1;
             renderPassInfo.pClearValues = &clearColor;
 
@@ -190,7 +190,6 @@ private:
             //bind graphic pipeline
             vkCmdBindPipeline(cmdBuffers[i] , VK_PIPELINE_BIND_POINT_GRAPHICS ,graphicsPipeline);
             vkCmdDraw(cmdBuffers[i] , 3 , 1 , 0 , 0);
-
             if(vkEndCommandBuffer(cmdBuffers[i]) != VK_SUCCESS){
                 throw std::runtime_error("failed to recoder render pass !");
             }
@@ -255,7 +254,7 @@ private:
 
         VkAttachmentReference colorAttachmentRef = {};
         colorAttachmentRef.attachment = 0;
-        colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        colorAttachmentRef.layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
         VkSubpassDescription subpass = {};
         subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
@@ -774,13 +773,15 @@ private:
             glfwPollEvents();
             drawFrame();
         }//end while
+
+        vkDeviceWaitIdle(device);
     }
 
     //渲染一帧图像
     void drawFrame(){
         uint32_t imageIndex;
 
-        vkAcquireNextImageKHR(device , swapChain , 10*1000000 , 
+        vkAcquireNextImageKHR(device , swapChain , UINT64_MAX , 
             imageAvailableSemaphore , VK_NULL_HANDLE , &imageIndex);
 
         //std::cout << "imageIndex = " << imageIndex << std::endl;
