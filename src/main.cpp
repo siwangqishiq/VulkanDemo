@@ -190,6 +190,9 @@ private:
             //bind graphic pipeline
             vkCmdBindPipeline(cmdBuffers[i] , VK_PIPELINE_BIND_POINT_GRAPHICS ,graphicsPipeline);
             vkCmdDraw(cmdBuffers[i] , 3 , 1 , 0 , 0);
+
+            vkCmdEndRenderPass(cmdBuffers[i]);
+
             if(vkEndCommandBuffer(cmdBuffers[i]) != VK_SUCCESS){
                 throw std::runtime_error("failed to recoder render pass !");
             }
@@ -254,7 +257,7 @@ private:
 
         VkAttachmentReference colorAttachmentRef = {};
         colorAttachmentRef.attachment = 0;
-        colorAttachmentRef.layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
         VkSubpassDescription subpass = {};
         subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
