@@ -57,6 +57,8 @@ const std::vector<const char *> deviceExtensions = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME
 };
 
+const int MAX_FRAMES_IN_FLIGHT = 2;//可同时并行处理的帧数
+
 class HelloTriangleApplication{
 public: 
     std::string appName = "Hello Vulkan";
@@ -102,8 +104,13 @@ private:
     std::vector<VkCommandBuffer> cmdBuffers;//指令缓存
 
     //同步信号量
-    VkSemaphore imageAvailableSemaphore;
-    VkSemaphore renderFinishedSemaphore;
+    // VkSemaphore imageAvailableSemaphore;
+    // VkSemaphore renderFinishedSemaphore;
+    std::vector<VkSemaphore> imageAvailableSemaphores;
+    std::vector<VkSemaphore> renderFinishedSemaphores;
+    std::vector<VkFence> inFlightFences;
+
+    int currentFrame = 0;//指示当前渲染的是哪一帧
 
     void initWindow(){
         glfwInit();
@@ -128,18 +135,29 @@ private:
         createFramebuffers();
         createCommandPool();
         createCommandBuffers();
-        createSemaphores();
+        createSyncObjects();
     }
 
     //创建信号量
-    void createSemaphores(){
+    void createSyncObjects(){
         VkSemaphoreCreateInfo createInfo = {};
         createInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-        if(vkCreateSemaphore(device , &createInfo , nullptr , &imageAvailableSemaphore) != VK_SUCCESS
-            || vkCreateSemaphore(device , &createInfo , nullptr , &renderFinishedSemaphore) != VK_SUCCESS){
-            throw std::runtime_error("failed create semaphore");
-        }
+        imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+        renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+        inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+
+        VkFenceCreateInfo fenceCreateInfo = {};
+        fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+        for(int i = 0 ; i < MAX_FRAMES_IN_FLIGHT ;i++){
+            if(vkCreateSemaphore(device , &createInfo , nullptr , &imageAvailableSemaphores[i]) != VK_SUCCESS
+                || vkCreateSemaphore(device , &createInfo , nullptr , &renderFinishedSemaphores[i]) != VK_SUCCESS
+                || vkCreateFence(device , &fenceCreateInfo , nullptr , &inFlightFences[i]) != VK_SUCCESS){
+                throw std::runtime_error("failed create semaphore");
+            }
+        }//end for i
 
         std::cout << "create semaphores success " << std::endl;
     }
@@ -782,19 +800,23 @@ private:
 
     //渲染一帧图像
     void drawFrame(){
+        //wait fence
+        vkWaitForFences(device , 1 , &inFlightFences[currentFrame] , VK_TRUE , INT32_MAX);
+
+        vkResetFences(device , 1 , &inFlightFences[currentFrame]);
+
         uint32_t imageIndex;
 
         vkAcquireNextImageKHR(device , swapChain , UINT64_MAX , 
-            imageAvailableSemaphore , VK_NULL_HANDLE , &imageIndex);
+            imageAvailableSemaphores[currentFrame] , VK_NULL_HANDLE , &imageIndex);
 
         //std::cout << "imageIndex = " << imageIndex << std::endl;
 
         VkSubmitInfo submitInfo = {};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-        VkSemaphore waitSemaphores[] = {imageAvailableSemaphore};
+        VkSemaphore waitSemaphores[] = {imageAvailableSemaphores[currentFrame]};
         VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-
 
         submitInfo.waitSemaphoreCount = 1;
         submitInfo.pWaitSemaphores = waitSemaphores;
@@ -803,11 +825,11 @@ private:
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = &cmdBuffers[imageIndex];
 
-        VkSemaphore signalSemaphores[] = {renderFinishedSemaphore};
+        VkSemaphore signalSemaphores[] = {renderFinishedSemaphores[currentFrame]};
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
 
-        if(vkQueueSubmit(graphicsQueue , 1 , &submitInfo , VK_NULL_HANDLE) != VK_SUCCESS){
+        if(vkQueueSubmit(graphicsQueue , 1 , &submitInfo , inFlightFences[currentFrame]) != VK_SUCCESS){
             throw std::runtime_error("fail to submit draw command buffer!");
         }
 
@@ -825,12 +847,22 @@ private:
         presentInfo.pResults = nullptr;
 
         vkQueuePresentKHR(presentQueue , &presentInfo);
+
+        //效率较低 会使GPU长期处于闲置状态
+        //vkQueueWaitIdle(presentQueue);
+
+        currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+        // std::cout << "currentFrame = " << currentFrame << std::endl;
     }
 
     //清理资源
     void cleanup(){
-        vkDestroySemaphore(device , imageAvailableSemaphore , nullptr);
-        vkDestroySemaphore(device , renderFinishedSemaphore , nullptr);
+        for(int i = 0 ; i < MAX_FRAMES_IN_FLIGHT  ;i++){
+            vkDestroySemaphore(device , imageAvailableSemaphores[i] , nullptr);
+            vkDestroySemaphore(device , renderFinishedSemaphores[i] , nullptr);
+
+            vkDestroyFence(device , inFlightFences[i] , nullptr);
+        }
 
         vkDestroyCommandPool(device , cmdPool , nullptr);
 
